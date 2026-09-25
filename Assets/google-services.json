@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "571298412061",
+    "project_id": "sfd24-firebase",
+    "storage_bucket": "sfd24-firebase.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:571298412061:android:5bbfeaf3354824baa938f4",
+        "android_client_info": {
+          "package_name": "com.nicofonseca.sid2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAwcqGSHS0d7bb41TPOeLI0Fvc24oPXRXU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
