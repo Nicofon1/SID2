@@ -1,4 +1,5 @@
 using Firebase.Auth;
+using Firebase.Extensions;
 using UnityEngine;
 
 // Escucha el estado de autenticación de Firebase y muestra el panel que corresponde.
@@ -47,6 +48,7 @@ public class AuthStateHandler : MonoBehaviour
         if (user != null)
         {
             Debug.Log("User is signed in: " + user.Email);
+            EnsureUsername(user);
             UIManager.Instance.Show(AppScreen.Home);
         }
         else
@@ -54,5 +56,27 @@ public class AuthStateHandler : MonoBehaviour
             if (CatchGameManager.Instance != null) CatchGameManager.Instance.StopGame();
             UIManager.Instance.Show(AppScreen.Login);
         }
+    }
+
+    // Cuentas creadas antes (o cuyo registro no alcanzó a guardar el nombre) no tienen
+    // users/{uid}/username y en la tabla salían como "Anónimo". Se completa al iniciar sesión.
+    private static void EnsureUsername(FirebaseUser user)
+    {
+        var usernameReference = FirebaseService.Users.Child(user.UserId).Child("username");
+        usernameReference.GetValueAsync().ContinueWithOnMainThread(task =>
+        {
+            if (task.IsFaulted || task.IsCanceled)
+            {
+                Debug.LogWarning("No se pudo leer el nombre de usuario: " + task.Exception);
+                return;
+            }
+            if (!string.IsNullOrEmpty(task.Result.Value as string)) return;
+
+            string username = string.IsNullOrEmpty(user.DisplayName)
+                ? ButtonRegister.UsernameFromEmail(user.Email ?? "")
+                : user.DisplayName;
+            if (string.IsNullOrEmpty(username)) return;
+            usernameReference.SetValueAsync(username);
+        });
     }
 }
