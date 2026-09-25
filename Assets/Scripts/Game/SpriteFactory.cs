@@ -58,7 +58,7 @@ public static class SpriteFactory
 
     private static float RoundedBoxAlpha(float x, float y)
     {
-        const float cornerRadius = 16f;
+        const float cornerRadius = 4f;
         float half = Size / 2f;
         float dx = Mathf.Max(Mathf.Abs(x - half) - (half - cornerRadius), 0f);
         float dy = Mathf.Max(Mathf.Abs(y - half) - (half - cornerRadius), 0f);

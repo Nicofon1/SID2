@@ -18,9 +18,13 @@ public class Leaderboard : MonoBehaviour
     [SerializeField]
     private TMP_Text _emptyLabel;
     [SerializeField]
-    private Color _rowColor = new Color(1f, 1f, 1f, 0.04f);
+    private Color _rowColor = Color.clear;
     [SerializeField]
-    private Color _currentUserRowColor = new Color(0.23f, 0.51f, 0.96f, 0.35f);
+    private Color _rowTextColor = TerminalTheme.Green;
+    [SerializeField]
+    private Color _currentUserRowColor = TerminalTheme.Green;
+    [SerializeField]
+    private Color _currentUserTextColor = TerminalTheme.Background;
 
     private Query _query;
     private readonly List<GameObject> _rows = new List<GameObject>();
@@ -35,7 +39,7 @@ public class Leaderboard : MonoBehaviour
     void OnEnable()
     {
         if (_rowTemplate != null) _rowTemplate.SetActive(false);
-        SetEmptyText("Cargando puntajes...");
+        SetEmptyText("CARGANDO...");
         FirebaseService.WhenReady(Subscribe);
     }
 
@@ -65,7 +69,7 @@ public class Leaderboard : MonoBehaviour
         if (args.DatabaseError != null)
         {
             Debug.LogError("Error leyendo el leaderboard: " + args.DatabaseError.Message);
-            SetEmptyText("No se pudo cargar la tabla de puntajes.");
+            SetEmptyText("SIN CONEXIÓN");
             return;
         }
 
@@ -93,7 +97,7 @@ public class Leaderboard : MonoBehaviour
         foreach (GameObject row in _rows) Destroy(row);
         _rows.Clear();
 
-        SetEmptyText(entries.Count == 0 ? "Aún no hay puntajes. ¡Sé el primero!" : "");
+        SetEmptyText(entries.Count == 0 ? "SIN PUNTAJES" : "");
 
         FirebaseUser user = FirebaseService.Auth.CurrentUser;
         string currentUserId = user != null ? user.UserId : null;
@@ -105,24 +109,28 @@ public class Leaderboard : MonoBehaviour
             row.name = "Row " + (i + 1);
             row.SetActive(true);
 
-            SetChildText(row, "Rank", "#" + (i + 1));
-            SetChildText(row, "Name", entry.Username);
-            SetChildText(row, "Score", entry.Score.ToString());
+            bool isCurrentUser = entry.UserId == currentUserId;
+            Color textColor = isCurrentUser ? _currentUserTextColor : _rowTextColor;
+            SetChildText(row, "Rank", (i + 1).ToString("00"), textColor);
+            SetChildText(row, "Name", entry.Username.ToUpperInvariant(), textColor);
+            SetChildText(row, "Score", entry.Score.ToString(), textColor);
 
             Image background = row.GetComponent<Image>();
             if (background != null)
             {
-                background.color = entry.UserId == currentUserId ? _currentUserRowColor : _rowColor;
+                background.color = isCurrentUser ? _currentUserRowColor : _rowColor;
             }
 
             _rows.Add(row);
         }
     }
 
-    private static void SetChildText(GameObject row, string childName, string text)
+    private static void SetChildText(GameObject row, string childName, string text, Color color)
     {
         Transform child = row.transform.Find(childName);
-        if (child != null && child.TryGetComponent(out TMP_Text label)) label.text = text;
+        if (child == null || !child.TryGetComponent(out TMP_Text label)) return;
+        label.text = text;
+        label.color = color;
     }
 
     private void SetEmptyText(string text)

@@ -10,8 +10,6 @@ public class ProfileLabels : MonoBehaviour
     private TMP_Text _greetingLabel;
     [SerializeField]
     private TMP_Text _bestScoreLabel;
-    [SerializeField]
-    private TMP_Text _detailsLabel;
 
     private DatabaseReference _userReference;
 
@@ -32,9 +30,9 @@ public class ProfileLabels : MonoBehaviour
         FirebaseUser user = FirebaseService.Auth.CurrentUser;
         if (user == null) return;
 
-        _greetingLabel.text = "Hola, " + (string.IsNullOrEmpty(user.DisplayName) ? user.Email : user.DisplayName);
-        _bestScoreLabel.text = "Mejor puntaje: ...";
-        if (_detailsLabel != null) _detailsLabel.text = user.Email;
+        string name = string.IsNullOrEmpty(user.DisplayName) ? ButtonRegister.UsernameFromEmail(user.Email) : user.DisplayName;
+        SetGreeting(name);
+        _bestScoreLabel.text = "RÉCORD : ...";
 
         _userReference = FirebaseService.Users.Child(user.UserId);
         _userReference.ValueChanged += HandleValueChanged;
@@ -59,17 +57,13 @@ public class ProfileLabels : MonoBehaviour
         if (snapshot == null || !snapshot.Exists) return;
 
         string username = snapshot.Child("username").Value as string;
-        if (!string.IsNullOrEmpty(username)) _greetingLabel.text = "Hola, " + username;
+        if (!string.IsNullOrEmpty(username)) SetGreeting(username);
 
-        _bestScoreLabel.text = "Mejor puntaje: " + FirebaseService.ToLong(snapshot.Child("score").Value);
+        _bestScoreLabel.text = "RÉCORD : " + FirebaseService.ToLong(snapshot.Child("score").Value);
+    }
 
-        if (_detailsLabel != null)
-        {
-            string country = snapshot.Child("pais").Value as string;
-            long age = FirebaseService.ToLong(snapshot.Child("edad").Value);
-            FirebaseUser user = FirebaseService.Auth.CurrentUser;
-            string email = user != null ? user.Email : "";
-            _detailsLabel.text = $"{email}\n{age} años  ·  {country}";
-        }
+    private void SetGreeting(string name)
+    {
+        _greetingLabel.text = "> " + name.ToUpperInvariant();
     }
 }

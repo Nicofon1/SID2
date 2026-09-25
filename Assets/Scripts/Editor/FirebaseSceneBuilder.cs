@@ -5,25 +5,26 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
+using UnityEngine.TextCore.LowLevel;
 using UnityEngine.UI;
 
-// Menú "SID2 > Construir escena Firebase": crea toda la interfaz (login, registro,
-// recuperar contraseña, menú, leaderboard, juego y game over) en la escena abierta
-// y conecta las referencias de los scripts. Se puede ajustar el diseño a mano después.
+// Menú "SID2 > Construir escena Firebase": crea toda la interfaz (acceso, menú,
+// juego y game over) con estética de terminal verde en la escena abierta
+// y conecta las referencias de los scripts.
 public static class FirebaseSceneBuilder
 {
     private const string CanvasName = "FirebaseUI";
     private const string ServicesName = "FirebaseServices";
     private const string GameName = "Game";
 
-    private static readonly Color BackgroundColor = new Color32(16, 19, 26, 255);
-    private static readonly Color CardColor = new Color32(28, 34, 48, 255);
-    private static readonly Color InputColor = new Color32(42, 49, 66, 255);
-    private static readonly Color PrimaryColor = new Color32(59, 130, 246, 255);
-    private static readonly Color SecondaryColor = new Color32(55, 65, 88, 255);
-    private static readonly Color DangerColor = new Color32(185, 60, 60, 255);
-    private static readonly Color TextColor = new Color32(235, 240, 250, 255);
-    private static readonly Color MutedTextColor = new Color32(150, 160, 180, 255);
+    private const string FontPath = "Assets/Fonts/VT323-Regular.ttf";
+    private const string FontAssetPath = "Assets/Fonts/VT323-Regular SDF.asset";
+
+    private static readonly Color Background = TerminalTheme.Background;
+    private static readonly Color Green = TerminalTheme.Green;
+    private static readonly Color DimGreen = TerminalTheme.DimGreen;
+
+    private static TMP_FontAsset _font;
 
     [MenuItem("SID2/Construir escena Firebase")]
     public static void Build()
@@ -43,8 +44,11 @@ public static class FirebaseSceneBuilder
             DestroyRoot(scene, GameName);
         }
 
+        _font = GetOrCreateFont();
+
         DisableOldUI(scene);
         EnsureEventSystem(scene);
+        SetupCamera();
 
         // ---------- Servicios y juego ----------
         var services = new GameObject(ServicesName);
@@ -73,37 +77,32 @@ public static class FirebaseSceneBuilder
         UIManager uiManager = canvasObject.AddComponent<UIManager>();
 
         GameObject loginPanel = BuildLoginPanel(root);
-        GameObject registerPanel = BuildRegisterPanel(root);
-        GameObject resetPanel = BuildResetPasswordPanel(root);
         GameObject homePanel = BuildHomePanel(root);
         GameObject gamePanel = BuildGamePanel(root, gameManager);
         GameObject gameOverPanel = BuildGameOverPanel(root, gameManager);
 
         Set(uiManager, "_loginPanel", loginPanel);
-        Set(uiManager, "_registerPanel", registerPanel);
-        Set(uiManager, "_resetPasswordPanel", resetPanel);
         Set(uiManager, "_homePanel", homePanel);
         Set(uiManager, "_gamePanel", gamePanel);
         Set(uiManager, "_gameOverPanel", gameOverPanel);
 
-        // Mensajes de estado (abajo, encima del pie de página)
-        TMP_Text status = CreateText(root, "StatusMessage", "", 26, TextAlignmentOptions.Center, TextColor);
-        Anchor(status.rectTransform, new Vector2(0.1f, 0f), new Vector2(0.9f, 0f), new Vector2(0, 70), new Vector2(0, 130));
+        BuildChrome(root);
+
+        // Mensajes de estado
+        TMP_Text status = CreateText(root, "StatusMessage", "", 40, TextAlignmentOptions.Center, Green);
+        Anchor(status.rectTransform, new Vector2(0.15f, 0f), new Vector2(0.85f, 0f), new Vector2(0, 230), new Vector2(0, 280));
         var statusMessage = status.gameObject.AddComponent<StatusMessage>();
         Set(statusMessage, "_label", status);
 
-        // Pie de página con el nombre completo
-        var footerBar = CreateImage(root, "Footer", new Color(0f, 0f, 0f, 0.55f));
-        Anchor(footerBar.rectTransform, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0, 0), new Vector2(0, 56));
-        footerBar.raycastTarget = false;
-        TMP_Text footerText = CreateText(footerBar.transform, "AuthorFooter", ProjectInfo.AuthorFullName, 24, TextAlignmentOptions.Center, TextColor);
-        Stretch(footerText.rectTransform);
-        var footer = footerText.gameObject.AddComponent<AuthorFooter>();
-        Set(footer, "_label", footerText);
+        // Líneas de barrido CRT por encima de todo
+        var scanlines = CreateUIObject(root, "Scanlines");
+        var scanlineImage = scanlines.AddComponent<RawImage>();
+        scanlineImage.raycastTarget = false;
+        scanlineImage.color = Color.clear; // CrtOverlay genera la textura al dar Play
+        scanlines.AddComponent<CrtOverlay>();
+        Stretch(scanlines.GetComponent<RectTransform>());
 
-        // Deja solo el login visible en el editor
-        registerPanel.SetActive(false);
-        resetPanel.SetActive(false);
+        // Deja solo el acceso visible en el editor
         homePanel.SetActive(false);
         gamePanel.SetActive(false);
         gameOverPanel.SetActive(false);
@@ -118,136 +117,97 @@ public static class FirebaseSceneBuilder
     private static GameObject BuildLoginPanel(Transform root)
     {
         GameObject panel = CreatePanel(root, "LoginPanel");
-        Transform card = CreateCard(panel.transform, "Card", 720);
+        CreateHeader(panel.transform, "ACCESO");
+        Transform content = CreateContent(panel.transform, 820);
 
-        CreateTitle(card, ProjectInfo.GameName);
-        CreateSubtitle(card, "Inicia sesión para jugar y guardar tus puntajes");
-        TMP_InputField email = CreateInput(card, "EmailField", "Correo electrónico", TMP_InputField.ContentType.EmailAddress);
-        TMP_InputField password = CreateInput(card, "PasswordField", "Contraseña", TMP_InputField.ContentType.Password);
+        TMP_InputField email = CreateInputRow(content, "Email", "CORREO", "tu@correo.com", TMP_InputField.ContentType.EmailAddress);
+        TMP_InputField password = CreateInputRow(content, "Password", "CLAVE", "******", TMP_InputField.ContentType.Password);
+        CreateSpacer(content, 12);
+        CreateDivider(content);
+        CreateSpacer(content, 12);
 
-        Button login = CreateButton(card, "LoginButton", "Iniciar sesión", PrimaryColor);
+        Button login = CreateMenuItem(content, "LoginButton", "ENTRAR");
         var buttonLogin = login.gameObject.AddComponent<ButtonLogin>();
         Set(buttonLogin, "_loginButton", login);
         Set(buttonLogin, "_emailInputField", email);
         Set(buttonLogin, "_passwordInputField", password);
 
-        CreateNavigationButton(card, "ForgotPasswordButton", "¿Olvidaste tu contraseña?", SecondaryColor, AppScreen.ResetPassword);
-        CreateNavigationButton(card, "GoToRegisterButton", "Crear una cuenta", SecondaryColor, AppScreen.Register);
-        return panel;
-    }
-
-    private static GameObject BuildRegisterPanel(Transform root)
-    {
-        GameObject panel = CreatePanel(root, "RegisterPanel");
-        Transform card = CreateCard(panel.transform, "Card", 820);
-
-        CreateTitle(card, "Crear cuenta");
-        TMP_InputField username = CreateInput(card, "UsernameField", "Nombre de usuario", TMP_InputField.ContentType.Alphanumeric);
-        username.characterLimit = 16;
-        TMP_InputField email = CreateInput(card, "EmailField", "Correo electrónico", TMP_InputField.ContentType.EmailAddress);
-        TMP_InputField password = CreateInput(card, "PasswordField", "Contraseña (mínimo 6 caracteres)", TMP_InputField.ContentType.Password);
-        TMP_InputField confirm = CreateInput(card, "ConfirmPasswordField", "Confirmar contraseña", TMP_InputField.ContentType.Password);
-
-        Transform extraRow = CreateRow(card, "DatosAdicionales", 64);
-        TMP_InputField age = CreateInput(extraRow, "AgeField", "Edad", TMP_InputField.ContentType.IntegerNumber);
-        age.characterLimit = 3;
-        TMP_InputField country = CreateInput(extraRow, "CountryField", "País", TMP_InputField.ContentType.Standard);
-
-        Button register = CreateButton(card, "RegisterButton", "Registrarme", PrimaryColor);
+        Button register = CreateMenuItem(content, "RegisterButton", "CREAR CUENTA");
         var buttonRegister = register.gameObject.AddComponent<ButtonRegister>();
         Set(buttonRegister, "_registerButton", register);
-        Set(buttonRegister, "_usernameInputField", username);
         Set(buttonRegister, "_emailInputField", email);
         Set(buttonRegister, "_passwordInputField", password);
-        Set(buttonRegister, "_confirmPasswordInputField", confirm);
-        Set(buttonRegister, "_ageInputField", age);
-        Set(buttonRegister, "_countryInputField", country);
 
-        CreateNavigationButton(card, "BackToLoginButton", "Ya tengo cuenta", SecondaryColor, AppScreen.Login);
-        return panel;
-    }
-
-    private static GameObject BuildResetPasswordPanel(Transform root)
-    {
-        GameObject panel = CreatePanel(root, "ResetPasswordPanel");
-        Transform card = CreateCard(panel.transform, "Card", 720);
-
-        CreateTitle(card, "Recuperar contraseña");
-        CreateSubtitle(card, "Escribe tu correo y te enviaremos un enlace para crear una contraseña nueva");
-        TMP_InputField email = CreateInput(card, "EmailField", "Correo electrónico", TMP_InputField.ContentType.EmailAddress);
-
-        Button send = CreateButton(card, "SendResetButton", "Enviar enlace", PrimaryColor);
-        var buttonReset = send.gameObject.AddComponent<ButtonResetPassword>();
-        Set(buttonReset, "_resetButton", send);
+        Button reset = CreateMenuItem(content, "ResetPasswordButton", "OLVIDÉ MI CLAVE");
+        var buttonReset = reset.gameObject.AddComponent<ButtonResetPassword>();
+        Set(buttonReset, "_resetButton", reset);
         Set(buttonReset, "_emailInputField", email);
 
-        CreateNavigationButton(card, "BackToLoginButton", "Volver", SecondaryColor, AppScreen.Login);
         return panel;
     }
 
     private static GameObject BuildHomePanel(Transform root)
     {
         GameObject panel = CreatePanel(root, "HomePanel");
+        CreateHeader(panel.transform, "MENÚ");
 
         var columns = CreateUIObject(panel.transform, "Columns");
         var columnsRect = columns.GetComponent<RectTransform>();
-        columnsRect.anchorMin = columnsRect.anchorMax = new Vector2(0.5f, 0.5f);
-        columnsRect.sizeDelta = new Vector2(1500, 760);
-        columnsRect.anchoredPosition = new Vector2(0, 40);
+        columnsRect.anchorMin = columnsRect.anchorMax = new Vector2(0.5f, 1f);
+        columnsRect.pivot = new Vector2(0.5f, 1f);
+        columnsRect.sizeDelta = new Vector2(1440, 520);
+        columnsRect.anchoredPosition = new Vector2(0, -250);
         var columnsLayout = columns.AddComponent<HorizontalLayoutGroup>();
-        columnsLayout.spacing = 40;
+        columnsLayout.spacing = 120;
         columnsLayout.childControlWidth = true;
         columnsLayout.childControlHeight = true;
         columnsLayout.childForceExpandWidth = false;
         columnsLayout.childForceExpandHeight = true;
 
-        // Columna izquierda: perfil y acciones
-        Transform profile = CreateColumnCard(columns.transform, "ProfileCard", 600);
-        CreateTitle(profile, ProjectInfo.GameName);
-        TMP_Text greeting = CreateText(profile, "Greeting", "Hola", 40, TextAlignmentOptions.Center, TextColor, 56);
-        greeting.fontStyle = FontStyles.Bold;
-        TMP_Text details = CreateText(profile, "Details", "", 24, TextAlignmentOptions.Center, MutedTextColor, 70);
-        TMP_Text best = CreateText(profile, "BestScore", "Mejor puntaje: ...", 32, TextAlignmentOptions.Center, new Color32(255, 210, 80, 255), 50);
-
-        var profileLabels = profile.gameObject.AddComponent<ProfileLabels>();
+        // Columna izquierda: jugador y opciones
+        Transform left = CreateColumn(columns.transform, "Player", 620);
+        TMP_Text greeting = CreateText(left, "Greeting", "> JUGADOR", 60, TextAlignmentOptions.Left, Green, 64);
+        TMP_Text best = CreateText(left, "BestScore", "RÉCORD : ...", 44, TextAlignmentOptions.Left, Green, 52);
+        var profileLabels = left.gameObject.AddComponent<ProfileLabels>();
         Set(profileLabels, "_greetingLabel", greeting);
         Set(profileLabels, "_bestScoreLabel", best);
-        Set(profileLabels, "_detailsLabel", details);
 
-        CreateText(profile, "HowToPlay",
-            "Atrapa los cuadros <color=#73F280>verdes</color> (+10) y <color=#FFD133>dorados</color> (+50).\n" +
-            "Esquiva las bolas <color=#FF4D4D>rojas</color>. Si dejas caer un verde pierdes una vida.\n" +
-            "Muévete con el mouse, el dedo o las flechas.",
-            22, TextAlignmentOptions.Center, MutedTextColor, 110);
+        CreateSpacer(left, 8);
+        CreateDivider(left);
+        CreateSpacer(left, 8);
 
-        Button play = CreateButton(profile, "PlayButton", "Jugar", PrimaryColor);
+        Button play = CreateMenuItem(left, "PlayButton", "JUGAR");
         AddGameButton(play, GameButtonAction.StartGame);
 
-        Button logout = CreateButton(profile, "LogoutButton", "Cerrar sesión", DangerColor);
+        Button logout = CreateMenuItem(left, "LogoutButton", "SALIR");
         var buttonLogout = logout.gameObject.AddComponent<ButtonLogout>();
         Set(buttonLogout, "_logoutButton", logout);
 
-        // Columna derecha: tabla de puntajes
-        Transform board = CreateColumnCard(columns.transform, "LeaderboardCard", 860);
-        CreateTitle(board, "Tabla de puntajes");
-        CreateSubtitle(board, "Top 10 · se actualiza en tiempo real");
+        CreateSpacer(left, 8);
+        CreateDivider(left);
+        CreateSpacer(left, 8);
+        CreateText(left, "Legend", "ATRAPA  : CUADROS\nESQUIVA : CÍRCULOS", 38, TextAlignmentOptions.Left, Green, 90);
 
-        GameObject header = CreateLeaderboardRow(board, "Header", "#", "Jugador", "Puntaje", 26, MutedTextColor);
-        header.GetComponent<Image>().color = new Color(0, 0, 0, 0);
+        // Columna derecha: tabla de puntajes
+        Transform board = CreateColumn(columns.transform, "Leaderboard", 700);
+        CreateText(board, "Title", "---- TOP 10 ----", 48, TextAlignmentOptions.Center, Green, 60);
+
+        GameObject header = CreateLeaderboardRow(board, "Header", "#", "JUGADOR", "PUNTOS", DimGreen);
+        header.GetComponent<Image>().color = Color.clear;
 
         var rows = CreateUIObject(board, "Rows");
         var rowsLayout = rows.AddComponent<VerticalLayoutGroup>();
-        rowsLayout.spacing = 4;
+        rowsLayout.spacing = 0;
         rowsLayout.childControlWidth = true;
         rowsLayout.childControlHeight = true;
         rowsLayout.childForceExpandWidth = true;
         rowsLayout.childForceExpandHeight = false;
         rows.AddComponent<LayoutElement>().flexibleHeight = 1;
 
-        GameObject template = CreateLeaderboardRow(rows.transform, "RowTemplate", "#1", "Jugador", "0", 28, TextColor);
+        GameObject template = CreateLeaderboardRow(rows.transform, "RowTemplate", "01", "JUGADOR", "0", Green);
         template.SetActive(false);
 
-        TMP_Text empty = CreateText(rows.transform, "EmptyLabel", "Cargando puntajes...", 26, TextAlignmentOptions.Center, MutedTextColor, 60);
+        TMP_Text empty = CreateText(rows.transform, "EmptyLabel", "CARGANDO...", 38, TextAlignmentOptions.Center, DimGreen, 60);
 
         var leaderboard = board.gameObject.AddComponent<Leaderboard>();
         Set(leaderboard, "_rowsContainer", rows.transform);
@@ -261,26 +221,25 @@ public static class FirebaseSceneBuilder
     {
         // Panel transparente: el juego se ve detrás (mundo 2D).
         GameObject panel = CreatePanel(root, "GamePanel");
-        Image background = panel.GetComponent<Image>();
-        background.color = new Color(0, 0, 0, 0);
-        background.raycastTarget = false;
 
-        var topBar = CreateImage(panel.transform, "TopBar", new Color(0f, 0f, 0f, 0.45f));
-        Anchor(topBar.rectTransform, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0, -90), new Vector2(0, 0));
+        TMP_Text score = CreateText(panel.transform, "ScoreLabel", "PUNTOS : 0000", 52, TextAlignmentOptions.Left, Green);
+        Anchor(score.rectTransform, new Vector2(0f, 1f), new Vector2(0.4f, 1f), new Vector2(80, -170), new Vector2(0, -100));
 
-        TMP_Text score = CreateText(topBar.transform, "ScoreLabel", "Puntaje: 0", 40, TextAlignmentOptions.Left, TextColor);
-        score.fontStyle = FontStyles.Bold;
-        Anchor(score.rectTransform, new Vector2(0f, 0f), new Vector2(0.4f, 1f), new Vector2(40, 0), new Vector2(0, 0));
+        TMP_Text lives = CreateText(panel.transform, "LivesLabel", "VIDAS : 3", 52, TextAlignmentOptions.Right, Green);
+        Anchor(lives.rectTransform, new Vector2(0.6f, 1f), new Vector2(1f, 1f), new Vector2(0, -170), new Vector2(-80, -100));
 
-        TMP_Text lives = CreateText(topBar.transform, "LivesLabel", "Vidas: 3", 40, TextAlignmentOptions.Right, new Color32(255, 110, 110, 255));
-        lives.fontStyle = FontStyles.Bold;
-        Anchor(lives.rectTransform, new Vector2(0.6f, 0f), new Vector2(1f, 1f), new Vector2(0, 0), new Vector2(-40, 0));
-
-        Button end = CreateButton(topBar.transform, "EndGameButton", "Terminar", SecondaryColor);
-        Object.DestroyImmediate(end.GetComponent<LayoutElement>());
-        var endRect = end.GetComponent<RectTransform>();
-        endRect.anchorMin = endRect.anchorMax = new Vector2(0.5f, 0.5f);
-        endRect.sizeDelta = new Vector2(220, 60);
+        var endHolder = CreateUIObject(panel.transform, "EndGame");
+        var endRect = endHolder.GetComponent<RectTransform>();
+        endRect.anchorMin = endRect.anchorMax = new Vector2(0.5f, 1f);
+        endRect.pivot = new Vector2(0.5f, 1f);
+        endRect.anchoredPosition = new Vector2(0, -104);
+        endRect.sizeDelta = new Vector2(400, 60);
+        var endLayout = endHolder.AddComponent<HorizontalLayoutGroup>();
+        endLayout.childAlignment = TextAnchor.MiddleCenter;
+        endLayout.childControlWidth = true;
+        endLayout.childControlHeight = true;
+        endLayout.childForceExpandWidth = false;
+        Button end = CreateMenuItem(endHolder.transform, "EndGameButton", "[ TERMINAR ]");
         AddGameButton(end, GameButtonAction.EndGame);
 
         Set(gameManager, "_scoreLabel", score);
@@ -291,22 +250,61 @@ public static class FirebaseSceneBuilder
     private static GameObject BuildGameOverPanel(Transform root, CatchGameManager gameManager)
     {
         GameObject panel = CreatePanel(root, "GameOverPanel");
-        panel.GetComponent<Image>().color = new Color(BackgroundColor.r, BackgroundColor.g, BackgroundColor.b, 0.85f);
-        Transform card = CreateCard(panel.transform, "Card", 640);
+        Image dim = panel.AddComponent<Image>();
+        dim.color = new Color(Background.r, Background.g, Background.b, 0.9f);
 
-        CreateTitle(card, "¡Fin del juego!");
-        CreateSubtitle(card, "Tu puntaje");
-        TMP_Text finalScore = CreateText(card, "FinalScore", "0", 96, TextAlignmentOptions.Center, new Color32(255, 210, 80, 255), 120);
+        CreateHeader(panel.transform, "FIN DEL JUEGO");
+        Transform content = CreateContent(panel.transform, 700);
+
+        TMP_Text finalScore = CreateText(content, "FinalScore", "0", 180, TextAlignmentOptions.Center, Green, 170);
         finalScore.fontStyle = FontStyles.Bold;
-        TMP_Text record = CreateText(card, "RecordLabel", "", 30, TextAlignmentOptions.Center, TextColor, 50);
+        finalScore.GetComponent<LayoutElement>().flexibleWidth = 1;
+        TMP_Text record = CreateText(content, "RecordLabel", "", 44, TextAlignmentOptions.Center, Green, 56);
+        record.GetComponent<LayoutElement>().flexibleWidth = 1;
 
-        Button again = CreateButton(card, "PlayAgainButton", "Jugar de nuevo", PrimaryColor);
+        CreateSpacer(content, 12);
+        CreateDivider(content);
+        CreateSpacer(content, 12);
+
+        Button again = CreateMenuItem(content, "PlayAgainButton", "JUGAR DE NUEVO");
         AddGameButton(again, GameButtonAction.StartGame);
-        CreateNavigationButton(card, "MenuButton", "Menú y puntajes", SecondaryColor, AppScreen.Home);
+        CreateNavigationButton(content, "MenuButton", "MENÚ", AppScreen.Home);
 
         Set(gameManager, "_finalScoreLabel", finalScore);
         Set(gameManager, "_recordLabel", record);
+
         return panel;
+    }
+
+    // Marco, esquinas y pie de página visibles en todas las pantallas.
+    private static void BuildChrome(Transform root)
+    {
+        GameObject chrome = CreateUIObject(root, "Chrome");
+        Stretch(chrome.GetComponent<RectTransform>());
+
+        // Marco fino
+        const float inset = 28f;
+        const float thickness = 2f;
+        Color frameColor = new Color(DimGreen.r, DimGreen.g, DimGreen.b, 0.6f);
+        CreateLine(chrome.transform, "FrameTop", frameColor, new Vector2(0, 1), new Vector2(1, 1), new Vector2(inset, -inset - thickness), new Vector2(-inset, -inset));
+        CreateLine(chrome.transform, "FrameBottom", frameColor, new Vector2(0, 0), new Vector2(1, 0), new Vector2(inset, inset), new Vector2(-inset, inset + thickness));
+        CreateLine(chrome.transform, "FrameLeft", frameColor, new Vector2(0, 0), new Vector2(0, 1), new Vector2(inset, inset), new Vector2(inset + thickness, -inset));
+        CreateLine(chrome.transform, "FrameRight", frameColor, new Vector2(1, 0), new Vector2(1, 1), new Vector2(-inset - thickness, inset), new Vector2(-inset, -inset));
+
+        TMP_Text topLeft = CreateText(chrome.transform, "TopLeft", "SID2 2026", 40, TextAlignmentOptions.Left, Green);
+        Anchor(topLeft.rectTransform, new Vector2(0, 1), new Vector2(0.5f, 1), new Vector2(80, -100), new Vector2(0, -50));
+
+        TMP_Text topRight = CreateText(chrome.transform, "TopRight", ProjectInfo.GameName.ToUpperInvariant() + " >", 40, TextAlignmentOptions.Right, Green);
+        Anchor(topRight.rectTransform, new Vector2(0.5f, 1), new Vector2(1, 1), new Vector2(0, -100), new Vector2(-80, -50));
+
+        // Pie de página con el nombre completo
+        TMP_Text footer = CreateText(chrome.transform, "AuthorFooter", ProjectInfo.AuthorFullName, 44, TextAlignmentOptions.Center, Green);
+        Anchor(footer.rectTransform, new Vector2(0.25f, 0), new Vector2(0.75f, 0), new Vector2(0, 60), new Vector2(0, 110));
+        var authorFooter = footer.gameObject.AddComponent<AuthorFooter>();
+        Set(authorFooter, "_label", footer);
+
+        TMP_Text stack = CreateText(chrome.transform, "Stack", "UNITY + FIREBASE", 30, TextAlignmentOptions.Right, Green);
+        Anchor(stack.rectTransform, new Vector2(0.6f, 0), new Vector2(1, 0), new Vector2(0, 44), new Vector2(-80, 84));
     }
 
     // ================= Helpers de UI =================
@@ -321,9 +319,9 @@ public static class FirebaseSceneBuilder
 
     private static GameObject CreatePanel(Transform parent, string name)
     {
-        Image image = CreateImage(parent, name, BackgroundColor);
-        Stretch(image.rectTransform);
-        return image.gameObject;
+        GameObject panel = CreateUIObject(parent, name);
+        Stretch(panel.GetComponent<RectTransform>());
+        return panel;
     }
 
     private static Image CreateImage(Transform parent, string name, Color color)
@@ -331,56 +329,67 @@ public static class FirebaseSceneBuilder
         GameObject go = CreateUIObject(parent, name);
         var image = go.AddComponent<Image>();
         image.color = color;
+        image.raycastTarget = false;
         return image;
     }
 
-    private static Transform CreateCard(Transform parent, string name, float width)
+    private static void CreateLine(Transform parent, string name, Color color, Vector2 anchorMin, Vector2 anchorMax, Vector2 offsetMin, Vector2 offsetMax)
     {
-        Image image = CreateImage(parent, name, CardColor);
-        RectTransform rect = image.rectTransform;
-        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
-        rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.sizeDelta = new Vector2(width, 0);
-        rect.anchoredPosition = new Vector2(0, 30);
-
-        AddVerticalLayout(image.gameObject);
-        var fitter = image.gameObject.AddComponent<ContentSizeFitter>();
-        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-        return image.transform;
+        Image line = CreateImage(parent, name, color);
+        Anchor(line.rectTransform, anchorMin, anchorMax, offsetMin, offsetMax);
     }
 
-    private static Transform CreateColumnCard(Transform parent, string name, float width)
+    // "-------- TITULO --------" arriba y al centro.
+    private static void CreateHeader(Transform parent, string title)
     {
-        Image image = CreateImage(parent, name, CardColor);
-        AddVerticalLayout(image.gameObject);
-        var layout = image.gameObject.AddComponent<LayoutElement>();
-        layout.preferredWidth = width;
-        return image.transform;
+        TMP_Text header = CreateText(parent, "Header", "-------- " + title + " --------", 72, TextAlignmentOptions.Center, Green);
+        Anchor(header.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -220), new Vector2(0, -130));
+    }
+
+    // Columna de contenido alineada a la izquierda, bajo el encabezado.
+    private static Transform CreateContent(Transform parent, float width)
+    {
+        GameObject content = CreateUIObject(parent, "Content");
+        var rect = content.GetComponent<RectTransform>();
+        rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 1f);
+        rect.sizeDelta = new Vector2(width, 0);
+        rect.anchoredPosition = new Vector2(0, -260);
+        AddVerticalLayout(content);
+        content.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+        return content.transform;
+    }
+
+    private static Transform CreateColumn(Transform parent, string name, float width)
+    {
+        GameObject column = CreateUIObject(parent, name);
+        AddVerticalLayout(column);
+        column.AddComponent<LayoutElement>().preferredWidth = width;
+        return column.transform;
     }
 
     private static void AddVerticalLayout(GameObject go)
     {
         var layout = go.AddComponent<VerticalLayoutGroup>();
-        layout.padding = new RectOffset(48, 48, 40, 40);
-        layout.spacing = 18;
-        layout.childAlignment = TextAnchor.UpperCenter;
+        layout.spacing = 10;
+        layout.childAlignment = TextAnchor.UpperLeft;
         layout.childControlWidth = true;
         layout.childControlHeight = true;
-        layout.childForceExpandWidth = true;
+        layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = false;
     }
 
-    private static Transform CreateRow(Transform parent, string name, float height)
+    private static void CreateSpacer(Transform parent, float height)
     {
-        GameObject row = CreateUIObject(parent, name);
-        var layout = row.AddComponent<HorizontalLayoutGroup>();
-        layout.spacing = 18;
-        layout.childControlWidth = true;
-        layout.childControlHeight = true;
-        layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = true;
-        row.AddComponent<LayoutElement>().preferredHeight = height;
-        return row.transform;
+        CreateUIObject(parent, "Spacer").AddComponent<LayoutElement>().preferredHeight = height;
+    }
+
+    private static void CreateDivider(Transform parent)
+    {
+        Image divider = CreateImage(parent, "Divider", Green);
+        var layout = divider.gameObject.AddComponent<LayoutElement>();
+        layout.preferredHeight = 3;
+        layout.flexibleWidth = 1;
     }
 
     private static TMP_Text CreateText(Transform parent, string name, string text, float size,
@@ -388,73 +397,105 @@ public static class FirebaseSceneBuilder
     {
         GameObject go = CreateUIObject(parent, name);
         var label = go.AddComponent<TextMeshProUGUI>();
+        ApplyFont(label);
         label.text = text;
         label.fontSize = size;
         label.alignment = alignment;
         label.color = color;
         label.raycastTarget = false;
-        if (preferredHeight > 0) go.AddComponent<LayoutElement>().preferredHeight = preferredHeight;
+        label.textWrappingMode = TextWrappingModes.NoWrap;
+        if (preferredHeight > 0)
+        {
+            var layout = go.AddComponent<LayoutElement>();
+            layout.preferredHeight = preferredHeight;
+            layout.flexibleWidth = 1;
+        }
         return label;
     }
 
-    private static void CreateTitle(Transform parent, string text)
+    private static void ApplyFont(TMP_Text text)
     {
-        TMP_Text title = CreateText(parent, "Title", text, 54, TextAlignmentOptions.Center, TextColor, 72);
-        title.fontStyle = FontStyles.Bold;
+        if (_font != null) text.font = _font;
     }
 
-    private static void CreateSubtitle(Transform parent, string text)
+    // Fila "ETIQUETA : ______" con un campo de texto subrayado.
+    private static TMP_InputField CreateInputRow(Transform parent, string name, string label, string placeholder, TMP_InputField.ContentType contentType)
     {
-        CreateText(parent, "Subtitle", text, 26, TextAlignmentOptions.Center, MutedTextColor, 64);
-    }
+        GameObject row = CreateUIObject(parent, name + "Row");
+        var rowLayout = row.AddComponent<HorizontalLayoutGroup>();
+        rowLayout.spacing = 16;
+        rowLayout.childAlignment = TextAnchor.MiddleLeft;
+        rowLayout.childControlWidth = true;
+        rowLayout.childControlHeight = true;
+        rowLayout.childForceExpandWidth = false;
+        rowLayout.childForceExpandHeight = true;
+        var rowElement = row.AddComponent<LayoutElement>();
+        rowElement.preferredHeight = 72;
+        rowElement.flexibleWidth = 1;
 
-    private static TMP_InputField CreateInput(Transform parent, string name, string placeholder, TMP_InputField.ContentType contentType)
-    {
+        TMP_Text labelText = CreateText(row.transform, "Label", label + " :", 52, TextAlignmentOptions.Left, Green);
+        labelText.gameObject.AddComponent<LayoutElement>().preferredWidth = 220;
+
         GameObject go = TMP_DefaultControls.CreateInputField(new TMP_DefaultControls.Resources());
-        go.name = name;
+        go.name = name + "Field";
         go.layer = LayerMask.NameToLayer("UI");
-        go.transform.SetParent(parent, false);
+        go.transform.SetParent(row.transform, false);
+        go.AddComponent<LayoutElement>().flexibleWidth = 1;
 
-        go.GetComponent<Image>().color = InputColor;
+        go.GetComponent<Image>().color = Color.clear;
         var input = go.GetComponent<TMP_InputField>();
         input.contentType = contentType;
-        input.pointSize = 30;
-        input.textComponent.color = TextColor;
-        input.caretColor = TextColor;
+        if (_font != null) input.fontAsset = _font;
+        input.pointSize = 52;
+        input.textComponent.color = Green;
+        input.caretColor = Green;
         input.customCaretColor = true;
+        input.caretWidth = 3;
+        input.selectionColor = new Color(Green.r, Green.g, Green.b, 0.35f);
 
         if (input.placeholder is TMP_Text placeholderText)
         {
             placeholderText.text = placeholder;
-            placeholderText.color = MutedTextColor;
+            placeholderText.color = DimGreen;
             placeholderText.fontStyle = FontStyles.Normal;
         }
 
-        go.AddComponent<LayoutElement>().preferredHeight = 64;
+        Image underline = CreateImage(go.transform, "Underline", DimGreen);
+        Anchor(underline.rectTransform, new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 4), new Vector2(0, 7));
+
         return input;
     }
 
-    private static Button CreateButton(Transform parent, string name, string text, Color color)
+    // Opción de menú: texto verde que se invierte al pasar el mouse.
+    private static Button CreateMenuItem(Transform parent, string name, string text)
     {
-        GameObject go = TMP_DefaultControls.CreateButton(new TMP_DefaultControls.Resources());
-        go.name = name;
-        go.layer = LayerMask.NameToLayer("UI");
-        go.transform.SetParent(parent, false);
+        GameObject go = CreateUIObject(parent, name);
+        var background = go.AddComponent<Image>();
+        background.color = Color.clear;
 
-        go.GetComponent<Image>().color = color;
-        var label = go.GetComponentInChildren<TMP_Text>();
-        label.text = text;
-        label.fontSize = 30;
-        label.fontStyle = FontStyles.Bold;
-        label.color = Color.white;
+        var button = go.AddComponent<Button>();
+        button.transition = Selectable.Transition.None;
+        button.targetGraphic = background;
 
-        go.AddComponent<LayoutElement>().preferredHeight = 68;
-        return go.GetComponent<Button>();
+        var layout = go.AddComponent<HorizontalLayoutGroup>();
+        layout.padding = new RectOffset(14, 22, 0, 0);
+        layout.childAlignment = TextAnchor.MiddleLeft;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        go.AddComponent<LayoutElement>().preferredHeight = 64;
+
+        TMP_Text label = CreateText(go.transform, "Label", text, 58, TextAlignmentOptions.Left, Green);
+
+        var terminalButton = go.AddComponent<TerminalButton>();
+        Set(terminalButton, "_background", background);
+        Set(terminalButton, "_label", label);
+        return button;
     }
 
-    private static void CreateNavigationButton(Transform parent, string name, string text, Color color, AppScreen target)
+    private static void CreateNavigationButton(Transform parent, string name, string text, AppScreen target)
     {
-        Button button = CreateButton(parent, name, text, color);
+        Button button = CreateMenuItem(parent, name, text);
         var navigation = button.gameObject.AddComponent<NavigationButton>();
         Set(navigation, "_button", button);
         SetEnum(navigation, "_target", (int)target);
@@ -467,26 +508,29 @@ public static class FirebaseSceneBuilder
         SetEnum(gameButton, "_action", (int)action);
     }
 
-    private static GameObject CreateLeaderboardRow(Transform parent, string name, string rank, string player, string score, float size, Color color)
+    private static GameObject CreateLeaderboardRow(Transform parent, string name, string rank, string player, string score, Color color)
     {
-        Image background = CreateImage(parent, name, new Color(1f, 1f, 1f, 0.04f));
+        Image background = CreateImage(parent, name, Color.clear);
         var layout = background.gameObject.AddComponent<HorizontalLayoutGroup>();
-        layout.padding = new RectOffset(20, 20, 0, 0);
+        layout.padding = new RectOffset(14, 14, 0, 0);
         layout.spacing = 12;
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = true;
-        background.gameObject.AddComponent<LayoutElement>().preferredHeight = 40;
+        var element = background.gameObject.AddComponent<LayoutElement>();
+        element.preferredHeight = 42;
+        element.flexibleWidth = 1;
 
-        TMP_Text rankText = CreateText(background.transform, "Rank", rank, size, TextAlignmentOptions.Left, color);
-        rankText.gameObject.AddComponent<LayoutElement>().preferredWidth = 80;
+        TMP_Text rankText = CreateText(background.transform, "Rank", rank, 40, TextAlignmentOptions.Left, color);
+        rankText.gameObject.AddComponent<LayoutElement>().preferredWidth = 70;
 
-        TMP_Text nameText = CreateText(background.transform, "Name", player, size, TextAlignmentOptions.Left, color);
+        TMP_Text nameText = CreateText(background.transform, "Name", player, 40, TextAlignmentOptions.Left, color);
         nameText.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1;
+        nameText.overflowMode = TextOverflowModes.Ellipsis;
 
-        TMP_Text scoreText = CreateText(background.transform, "Score", score, size, TextAlignmentOptions.Right, color);
-        scoreText.gameObject.AddComponent<LayoutElement>().preferredWidth = 180;
+        TMP_Text scoreText = CreateText(background.transform, "Score", score, 40, TextAlignmentOptions.Right, color);
+        scoreText.gameObject.AddComponent<LayoutElement>().preferredWidth = 160;
 
         return background.gameObject;
     }
@@ -507,7 +551,48 @@ public static class FirebaseSceneBuilder
         rect.offsetMax = offsetMax;
     }
 
+    // ================= Fuente =================
+
+    // Crea (una sola vez) el Font Asset de TextMesh Pro para la fuente VT323.
+    private static TMP_FontAsset GetOrCreateFont()
+    {
+        var fontAsset = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontAssetPath);
+        if (fontAsset != null) return fontAsset;
+
+        var font = AssetDatabase.LoadAssetAtPath<Font>(FontPath);
+        if (font == null)
+        {
+            Debug.LogWarning("No se encontró " + FontPath + "; se usará la fuente por defecto de TextMesh Pro.");
+            return null;
+        }
+
+        fontAsset = TMP_FontAsset.CreateFontAsset(font, 90, 9, GlyphRenderMode.SDFAA, 1024, 1024, AtlasPopulationMode.Dynamic);
+        if (fontAsset == null)
+        {
+            Debug.LogWarning("No se pudo crear el Font Asset de VT323; se usará la fuente por defecto.");
+            return null;
+        }
+
+        fontAsset.name = "VT323-Regular SDF";
+        AssetDatabase.CreateAsset(fontAsset, FontAssetPath);
+        fontAsset.atlasTexture.name = "VT323-Regular Atlas";
+        AssetDatabase.AddObjectToAsset(fontAsset.atlasTexture, fontAsset);
+        fontAsset.material.name = "VT323-Regular Material";
+        AssetDatabase.AddObjectToAsset(fontAsset.material, fontAsset);
+        AssetDatabase.SaveAssets();
+        return fontAsset;
+    }
+
     // ================= Helpers de escena =================
+
+    private static void SetupCamera()
+    {
+        Camera camera = Camera.main;
+        if (camera == null) return;
+        Undo.RecordObject(camera, "Fondo de cámara");
+        camera.clearFlags = CameraClearFlags.SolidColor;
+        camera.backgroundColor = Background;
+    }
 
     private static void Set(Object target, string propertyName, Object value)
     {

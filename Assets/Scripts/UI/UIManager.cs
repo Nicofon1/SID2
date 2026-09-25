@@ -3,8 +3,6 @@ using UnityEngine;
 public enum AppScreen
 {
     Login,
-    Register,
-    ResetPassword,
     Home,
     Game,
     GameOver
@@ -17,10 +15,6 @@ public class UIManager : MonoBehaviour
 
     [SerializeField]
     private GameObject _loginPanel;
-    [SerializeField]
-    private GameObject _registerPanel;
-    [SerializeField]
-    private GameObject _resetPasswordPanel;
     [SerializeField]
     private GameObject _homePanel;
     [SerializeField]
@@ -42,8 +36,6 @@ public class UIManager : MonoBehaviour
         StatusMessage.Clear();
 
         SetActive(_loginPanel, screen == AppScreen.Login);
-        SetActive(_registerPanel, screen == AppScreen.Register);
-        SetActive(_resetPasswordPanel, screen == AppScreen.ResetPassword);
         SetActive(_homePanel, screen == AppScreen.Home);
         SetActive(_gamePanel, screen == AppScreen.Game);
         SetActive(_gameOverPanel, screen == AppScreen.GameOver);

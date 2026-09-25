@@ -6,24 +6,16 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
+// Crea la cuenta con solo correo y contraseña. El nombre que aparece en la
+// tabla de puntajes se toma de la parte del correo antes de la "@".
 public class ButtonRegister : MonoBehaviour
 {
     [SerializeField]
     private Button _registerButton;
     [SerializeField]
-    private TMP_InputField _usernameInputField;
-    [SerializeField]
     private TMP_InputField _emailInputField;
     [SerializeField]
     private TMP_InputField _passwordInputField;
-    [SerializeField]
-    private TMP_InputField _confirmPasswordInputField;
-
-    [Header("Datos adicionales")]
-    [SerializeField]
-    private TMP_InputField _ageInputField;
-    [SerializeField]
-    private TMP_InputField _countryInputField;
 
     private void Reset()
     {
@@ -37,44 +29,21 @@ public class ButtonRegister : MonoBehaviour
 
     private void OnRegisterButtonClick()
     {
-        string username = _usernameInputField.text.Trim();
         string email = _emailInputField.text.Trim();
         string password = _passwordInputField.text;
-        string confirmPassword = _confirmPasswordInputField.text;
-        string country = _countryInputField.text.Trim();
 
-        if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
+        if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
         {
-            StatusMessage.Show("Completa usuario, correo y contraseña.", true);
-            return;
-        }
-        if (username.Length < 3 || username.Length > 16)
-        {
-            StatusMessage.Show("El nombre de usuario debe tener entre 3 y 16 caracteres.", true);
-            return;
-        }
-        if (password != confirmPassword)
-        {
-            StatusMessage.Show("Las contraseñas no coinciden.", true);
-            return;
-        }
-        if (!int.TryParse(_ageInputField.text, out int age) || age < 5 || age > 120)
-        {
-            StatusMessage.Show("Escribe una edad válida.", true);
-            return;
-        }
-        if (string.IsNullOrEmpty(country))
-        {
-            StatusMessage.Show("Escribe tu país.", true);
+            StatusMessage.Show("Escribe correo y contraseña.", true);
             return;
         }
 
-        RegisterUser(username, email, password, age, country);
+        RegisterUser(email, password);
     }
 
     // Se usa ContinueWithOnMainThread en vez de una corrutina: al crear la cuenta Firebase
     // inicia sesión y AuthStateHandler oculta este panel, lo que detendría la corrutina.
-    private void RegisterUser(string username, string email, string password, int age, string country)
+    private void RegisterUser(string email, string password)
     {
         _registerButton.interactable = false;
         StatusMessage.Show("Creando cuenta...");
@@ -92,19 +61,25 @@ public class ButtonRegister : MonoBehaviour
             FirebaseUser newUser = registerTask.Result.User;
             Debug.LogFormat("Firebase user created successfully: {0} ({1})", newUser.Email, newUser.UserId);
 
+            string username = UsernameFromEmail(email);
             newUser.UpdateUserProfileAsync(new UserProfile { DisplayName = username });
-            SaveUserData(newUser.UserId, username, age, country);
+            SaveUserData(newUser.UserId, username);
         });
     }
 
-    // users/{uid}: nombre de usuario y datos adicionales del registro.
-    private void SaveUserData(string userId, string username, int age, string country)
+    public static string UsernameFromEmail(string email)
+    {
+        int at = email.IndexOf('@');
+        string name = at > 0 ? email.Substring(0, at) : email;
+        return name.Length > 16 ? name.Substring(0, 16) : name;
+    }
+
+    // users/{uid}: nombre visible y mejor puntaje.
+    private void SaveUserData(string userId, string username)
     {
         var userData = new Dictionary<string, object>
         {
             { "username", username },
-            { "edad", age },
-            { "pais", country },
             { "score", 0 },
             { "creado", ServerValue.Timestamp }
         };
@@ -120,18 +95,7 @@ public class ButtonRegister : MonoBehaviour
                 return;
             }
 
-            StatusMessage.Show("¡Cuenta creada! Bienvenido, " + username + ".");
-            ClearFields();
+            _passwordInputField.text = "";
         });
-    }
-
-    private void ClearFields()
-    {
-        _usernameInputField.text = "";
-        _emailInputField.text = "";
-        _passwordInputField.text = "";
-        _confirmPasswordInputField.text = "";
-        _ageInputField.text = "";
-        _countryInputField.text = "";
     }
 }

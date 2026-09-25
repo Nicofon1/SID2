@@ -10,9 +10,9 @@ public class StatusMessage : MonoBehaviour
     private TMP_Text _label;
 
     [SerializeField]
-    private Color _infoColor = new Color(0.85f, 0.9f, 1f);
+    private Color _infoColor = TerminalTheme.Green;
     [SerializeField]
-    private Color _errorColor = new Color(1f, 0.45f, 0.45f);
+    private Color _errorColor = TerminalTheme.Error;
 
     private void Reset()
     {
@@ -31,7 +31,7 @@ public class StatusMessage : MonoBehaviour
 
         if (_instance == null || _instance._label == null) return;
         _instance._label.color = isError ? _instance._errorColor : _instance._infoColor;
-        _instance._label.text = message;
+        _instance._label.text = message.ToUpperInvariant();
     }
 
     public static void Clear()

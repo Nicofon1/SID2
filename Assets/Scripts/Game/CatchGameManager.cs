@@ -43,13 +43,13 @@ public class CatchGameManager : MonoBehaviour
 
     [Header("Colores")]
     [SerializeField]
-    private Color _playerColor = new Color(0.25f, 0.75f, 1f);
+    private Color _playerColor = TerminalTheme.Green;
     [SerializeField]
-    private Color _starColor = new Color(0.45f, 0.95f, 0.5f);
+    private Color _starColor = TerminalTheme.Green;
     [SerializeField]
-    private Color _goldenStarColor = new Color(1f, 0.82f, 0.2f);
+    private Color _goldenStarColor = TerminalTheme.PaleGreen;
     [SerializeField]
-    private Color _bombColor = new Color(1f, 0.3f, 0.3f);
+    private Color _bombColor = TerminalTheme.Error;
 
     private readonly List<FallingItem> _items = new List<FallingItem>();
     private int _score;
@@ -94,7 +94,7 @@ public class CatchGameManager : MonoBehaviour
 
         UIManager.Instance.Show(AppScreen.GameOver);
         _finalScoreLabel.text = _score.ToString();
-        _recordLabel.text = "Guardando puntaje...";
+        _recordLabel.text = "GUARDANDO...";
 
         int finalScore = _score;
         ScoreService.SubmitScore(finalScore, (success, isNewRecord, best) =>
@@ -102,15 +102,15 @@ public class CatchGameManager : MonoBehaviour
             if (_recordLabel == null) return;
             if (!success)
             {
-                _recordLabel.text = "No se pudo guardar el puntaje.";
+                _recordLabel.text = "NO SE PUDO GUARDAR";
             }
             else if (isNewRecord && finalScore > 0)
             {
-                _recordLabel.text = "¡Nuevo récord personal!";
+                _recordLabel.text = "NUEVO RÉCORD";
             }
             else
             {
-                _recordLabel.text = "Tu récord: " + best;
+                _recordLabel.text = "RÉCORD : " + best;
             }
         });
     }
@@ -257,7 +257,7 @@ public class CatchGameManager : MonoBehaviour
 
     private void UpdateHud()
     {
-        _scoreLabel.text = "Puntaje: " + _score;
-        _livesLabel.text = "Vidas: " + Mathf.Max(_lives, 0);
+        _scoreLabel.text = "PUNTOS : " + _score.ToString("0000");
+        _livesLabel.text = "VIDAS : " + Mathf.Max(_lives, 0);
     }
 }

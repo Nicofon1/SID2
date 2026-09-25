@@ -27,7 +27,7 @@ public class ButtonResetPassword : MonoBehaviour
         string email = _emailInputField.text.Trim();
         if (string.IsNullOrEmpty(email))
         {
-            StatusMessage.Show("Escribe el correo de tu cuenta.", true);
+            StatusMessage.Show("Escribe tu correo arriba.", true);
             return;
         }
 
@@ -46,7 +46,7 @@ public class ButtonResetPassword : MonoBehaviour
             }
 
             Debug.Log("Password reset email sent to " + email);
-            StatusMessage.Show("Si el correo está registrado, te llegará un enlace para cambiar la contraseña. Revisa también spam.");
+            StatusMessage.Show("Te enviamos un enlace a tu correo.");
         });
     }
 }
